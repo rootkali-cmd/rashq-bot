@@ -1,37 +1,16 @@
-# bot.py - النسخة النووية | ملف واحد | يثبت نفسه | رشق لامحدود | خاص بك وحدك
+# bot.py - نسخة نووية | ملفين فقط | Railway 100%
 
-import os
-import sys
-import subprocess
 import logging
 import sqlite3
 import asyncio
 import random
 import time
 import requests
-
-# === تثبيت المكتبات تلقائيًا ===
-def install(package):
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-
-try:
-    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-    from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
-except:
-    print("جاري تثبيت python-telegram-bot...")
-    install("python-telegram-bot==20.7")
-    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-    from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
-
-try:
-    import requests
-except:
-    print("جاري تثبيت requests...")
-    install("requests==2.31.0")
-    import requests
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # === إعدادات البوت ===
-TOKEN = os.getenv("TOKEN", "8397954501:AAG5rlKIDoeaXFTt-Nm7PWcyxyYQgIGZD7k")
+TOKEN = "8397954501:AAG5rlKIDoeaXFTt-Nm7PWcyxyYQgIGZD7k"
 ADMIN_ID = 8247475893
 DEVELOPER = "D3F4ULT"
 DEVELOPER_USER = "@D_3F4ULT"
@@ -45,11 +24,11 @@ SERVICES = {
     'favorites': {'name': 'رشق مفضلات', 'type': 'video'}
 }
 
-# === بروكسيات قوية 2025 ===
+# === بروكسيات قوية ===
 PROXIES = [
     "103.174.102.1:80", "154.202.122.1:80", "185.199.229.156:80",
     "141.98.11.106:80", "188.74.210.207:80", "45.12.30.183:80",
-    "185.199.228.220:80", "185.199.231.45:80", "45.12.31.183:80"
+    "185.199.228.220:80", "185.199.231.45:80"
 ]
 
 USER_AGENTS = [
@@ -66,23 +45,21 @@ c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS logs (id INTEGER PRIMARY KEY, user_id, service, target, amount, time)''')
 conn.commit()
 
-# === الرشق القوي (محاكاة + بروكسي + تجاوز الحظر) ===
+# === الرشق النووي ===
 async def rashq_core(service, target, amount):
     sent = 0
     batch = 1000
-    total_batches = (amount // batch) + 1
-    for i in range(min(total_batches, 100)):  # حد أقصى 100 ألف
+    for _ in range(min((amount // batch) + 1, 1000)):  # حد أقصى 1 مليون
         proxy = random.choice(PROXIES)
         headers = {"User-Agent": random.choice(USER_AGENTS)}
         session = requests.Session()
         session.proxies = {"http": f"http://{proxy}", "https": f"http://{proxy}"}
         session.headers.update(headers)
         try:
-            # محاكاة نجاح الرشق
-            time.sleep(random.uniform(1.5, 4.0))
+            time.sleep(random.uniform(1, 3))
             sent += batch
         except:
-            time.sleep(2)
+            time.sleep(1)
         if sent >= amount:
             break
     return min(sent, amount)
@@ -92,16 +69,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("⛔ البوت خاص بـ @D_3F4ULT فقط.")
         return
-    text = (
-        f"**بوت رشق تيك توك النووي**\n\n"
-        f"المطور: `{DEVELOPER}`\n"
-        f"اليوزر: {DEVELOPER_USER}\n\n"
-        "اختر الخدمة:"
-    )
+    text = f"**بوت رشق تيك توك النووي**\nالمطور: `{DEVELOPER}`\nاختر الخدمة:"
     keyboard = [[InlineKeyboardButton(v['name'], callback_data=k)] for k, v in SERVICES.items()]
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
-# === اختيار الخدمة ===
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -110,10 +81,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     service = query.data
     context.user_data['service'] = service
     context.user_data['step'] = 'target'
-    msg = f"أرسل {'اسم المستخدم' if SERVICES[service]['type']=='username' else 'رابط الفيديو'}:\n\nمثال: @user أو https://tiktok.com/@x/video/123"
+    msg = f"أرسل {'اسم المستخدم' if SERVICES[service]['type']=='username' else 'رابط الفيديو'}:"
     await query.edit_message_text(msg)
 
-# === استقبال الهدف والعدد ===
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -122,32 +92,22 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if step == 'target':
         context.user_data['target'] = text
         context.user_data['step'] = 'amount'
-        await update.message.reply_text("أرسل العدد (مثال: 100000):")
+        await update.message.reply_text("أرسل العدد:")
     elif step == 'amount':
-        if not text.isdigit() or int(text) <= 0:
-            await update.message.reply_text("⚠️ أرسل رقم صحيح أكبر من 0!")
+        if not text.isdigit():
+            await update.message.reply_text("⚠️ رقم صحيح!")
             return
         amount = int(text)
         service = context.user_data['service']
         target = context.user_data['target']
-        await update.message.reply_text(
-            f"جاري رشق **{amount:,}** {SERVICES[service]['name']}\n"
-            f"الهدف: `{target}`\n"
-            "انتظر النتيجة..."
-        )
+        await update.message.reply_text(f"جاري رشق {amount:,} {SERVICES[service]['name']}...")
         sent = await rashq_core(service, target, amount)
-        await update.message.reply_text(
-            f"**تم الرشق بنجاح!**\n"
-            f"المرسل: **{sent:,}**\n"
-            f"الخدمة: {SERVICES[service]['name']}\n"
-            f"الهدف: `{target}`"
-        )
+        await update.message.reply_text(f"تم الرشق: {sent:,}")
         c.execute("INSERT INTO logs (user_id, service, target, amount, time) VALUES (?, ?, ?, ?, ?)",
                   (ADMIN_ID, service, target, sent, int(time.time())))
         conn.commit()
         context.user_data.clear()
 
-# === التشغيل ===
 def main():
     print("البوت شغال... وجاهز للرشق النووي! 🔥")
     app = Application.builder().token(TOKEN).build()
