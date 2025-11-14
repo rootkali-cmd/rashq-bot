@@ -40,7 +40,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS accounts (
     id INTEGER PRIMARY KEY,
     email TEXT,
     pass TEXT,
-    status TEXT DEFAULT 'creating',  -- creating, active, banned, error
+    status TEXT DEFAULT 'creating',
     created_at INTEGER
 )''')
 c.execute('''CREATE TABLE IF NOT EXISTS logs (
@@ -52,7 +52,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS logs (
 )''')
 conn.commit()
 
-# === Temp Mail API (1secmail.com - مجاني 100%) ===
+# === Temp Mail API (1secmail.com) ===
 def get_temp_email():
     domains = ['1secmail.com', '1secmail.org', '1secmail.net']
     domain = random.choice(domains)
@@ -84,7 +84,6 @@ async def create_account_task():
         driver.get("https://www.tiktok.com/signup")
         time.sleep(6)
 
-        # Email signup
         try:
             driver.find_element(By.XPATH, "//div[contains(text(), 'Use phone or email')]").click()
             time.sleep(2)
@@ -93,15 +92,13 @@ async def create_account_task():
         except:
             pass
 
-        # Fill email & pass
         driver.find_element(By.NAME, "email").send_keys(email)
         driver.find_element(By.NAME, "password").send_keys(password)
         driver.find_element(By.XPATH, "//button[@type='submit']").click()
         time.sleep(8)
 
-        # Get verification code
         code = None
-        for _ in range(12):  # 60 seconds
+        for _ in range(12):
             msgs = get_messages(username, domain)
             if msgs:
                 msg = get_message(username, domain, msgs[0]['id'])
@@ -118,7 +115,6 @@ async def create_account_task():
             driver.find_element(By.XPATH, "//button[@type='submit']").click()
             time.sleep(8)
 
-            # Success
             c.execute("INSERT INTO accounts (email, pass, status, created_at) VALUES (?, ?, 'active', ?)",
                       (email, password, int(time.time())))
             conn.commit()
@@ -218,26 +214,95 @@ async def rashq_core(service, target, amount):
                 time.sleep(random.uniform(5, 10))
             except: pass
         driver.quit()
+    c.execute("INSERT INTO logs (service, target, amount, time) VALUES (?, ?, ?, ?)",
+              (service, target, sent, int(time.time())))
+    conn.commit()
     return sent
 
-# === خلفية: إنشاء حسابات تلقائيًا كل 30 دقيقة ===
-async def auto_create_accounts(app):
-    while True:
-        try:
-            c.execute("SELECT COUNT(*) FROM accounts WHERE status = 'active'")
-            active = c.fetchone()[0]
-            if active < 20:  # لو أقل من 20، أنشئ 5 جدد
-                await app.bot.send_message(ADMIN_ID, "إنشاء 5 حسابات جديدة تلقائيًا...")
-                for _ in range(5):
-                    await create_account_task()
-                    await asyncio.sleep(30)
-        except: pass
-        await asyncio.sleep(1800)  # كل 30 دقيقة
+# === /start ===
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("البوت خاص بـ @D_3F4ULT فقط.")
+        return
+    text = f"بوت رشق Ahmed Mahmoud\n\nالمطور: {DEVELOPER}\nاليوزر: {DEVELOPER_USER}\n\nاختر الخدمة:"
+    keyboard = [[InlineKeyboardButton(v['name'], callback_data=k)] for k, v in SERVICES.items()]
+    keyboard.append([InlineKeyboardButton("إحصائيات المزرعة", callback_data='stats')])
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# === /stats (إحصائيات المزرعة) ===
-async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# === اختيار الخدمة ===
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    service = query.data
+    context.user_data['service'] = service
+    context.user_data['step'] = 'target'
+    if service == 'comment_likes':
+        msg = "أرسل رابط الفيديو:\n(مثال: https://www.tiktok.com/@user/video/123456789)"
+    else:
+        target_type = 'اسم المستخدم' if SERVICES[service]['type'] == 'username' else 'رابط الفيديو'
+        msg = f"أرسل {target_type}:"
+    await query.edit_message_text(msg)
+
+# === استقبال النصوص ===
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
+    text = update.message.text.strip()
+    step = context.user_data.get('step')
+    service = context.user_data.get('service')
+    
+    if step == 'target':
+        context.user_data['target'] = text
+        if service == 'comment_likes':
+            context.user_data['step'] = 'commenter'
+            await update.message.reply_text("أرسل اسم المستخدم اللي عمل الكومنت:\n(مثال: @user)")
+        else:
+            context.user_data['step'] = 'amount'
+            await update.message.reply_text("أرسل العدد:")
+    elif step == 'commenter' and service == 'comment_likes':
+        commenter = text
+        video_link = context.user_data['target']
+        context.user_data['target'] = f"{video_link}|{commenter}"
+        context.user_data['step'] = 'amount'
+        keyboard = [
+            [InlineKeyboardButton("25 لايك", callback_data='25_cl')],
+            [InlineKeyboardButton("50 لايك", callback_data='50_cl')],
+            [InlineKeyboardButton("100 لايك", callback_data='100_cl')]
+        ]
+        await update.message.reply_text("اختر عدد اللايكات:", reply_markup=InlineKeyboardMarkup(keyboard))
+    elif step == 'amount':
+        if not text.isdigit() or int(text) <= 0:
+            await update.message.reply_text("أرسل رقم صحيح أكبر من 0!")
+            return
+        amount = int(text)
+        target = context.user_data['target']
+        await update.message.reply_text(f"جاري رشق {amount:,} {SERVICES[service]['name']}...")
+        sent = await rashq_core(service, target, amount)
+        await update.message.reply_text(f"تم الرشق: {sent:,}\nتحقق بعد 5-15 دقيقة!")
+        context.user_data.clear()
+
+# === أزرار الكومنتات ===
+async def comment_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != ADMIN_ID:
+        return
+    if query.data.endswith('_cl'):
+        amount = int(query.data.split('_')[0])
+        service = 'comment_likes'
+        target = context.user_data.get('target', '')
+        if not target:
+            await query.edit_message_text("خطأ: ما فيش هدف!")
+            return
+        await query.edit_message_text(f"جاري رشق {amount} لايك على الكومنت...")
+        sent = await rashq_core(service, target, amount)
+        await query.message.reply_text(f"تم الرشق: {sent} لايك\nتحقق بعد 5-15 دقيقة!")
+        context.user_data.clear()
+
+# === /stats ===
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     c.execute("SELECT COUNT(*) FROM accounts WHERE status = 'active'"); active = c.fetchone()[0]
     c.execute("SELECT COUNT(*) FROM accounts WHERE status = 'creating'"); creating = c.fetchone()[0]
     c.execute("SELECT COUNT(*) FROM accounts WHERE status = 'banned'"); banned = c.fetchone()[0]
@@ -256,31 +321,34 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 آخر تحديث: {time.strftime('%H:%M:%S')}
 """
     keyboard = [[InlineKeyboardButton("تحديث الإحصائيات", callback_data='refresh_stats')]]
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+    if update.message:
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 # === refresh stats ===
 async def refresh_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await stats(update, context)
 
-# === /start ===
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("البوت خاص بـ @D_3F4ULT فقط.")
-        return
-    text = f"بوت رشق Ahmed Mahmoud\n\nالمطور: {DEVELOPER}\nاليوزر: {DEVELOPER_USER}\n\nاختر الخدمة:"
-    keyboard = [[InlineKeyboardButton(v['name'], callback_data=k)] for k, v in SERVICES.items()]
-    keyboard.append([InlineKeyboardButton("إحصائيات المزرعة", callback_data='stats')])
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
-
-# === باقي الدوال (button, handle_text, comment_buttons) ===
-# (نفس الكود السابق — مش هكرره)
+# === خلفية تلقائية ===
+async def auto_create_accounts(app):
+    while True:
+        try:
+            c.execute("SELECT COUNT(*) FROM accounts WHERE status = 'active'")
+            active = c.fetchone()[0]
+            if active < 15:
+                await app.bot.send_message(ADMIN_ID, "إنشاء 3 حسابات جديدة تلقائيًا...")
+                for _ in range(3):
+                    await create_account_task()
+                    await asyncio.sleep(30)
+        except: pass
+        await asyncio.sleep(1800)  # كل 30 دقيقة
 
 # === التشغيل ===
 def main():
     print("Ahmed Mahmoud Farm Bot شغال... خارق!")
     app = Application.builder().token(TOKEN).concurrent_updates(True).build()
 
-    # Handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CallbackQueryHandler(button, pattern='^(followers|views|likes|shares|favorites|comment_likes)$'))
@@ -289,7 +357,6 @@ def main():
     app.add_handler(CallbackQueryHandler(lambda u, c: stats(u, c), pattern='^stats$'))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    # خلفية تلقائية
     app.job_queue.run_repeating(lambda c: asyncio.create_task(auto_create_accounts(app)), interval=1800, first=10)
 
     app.run_polling()
