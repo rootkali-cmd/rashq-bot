@@ -136,7 +136,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = f"أرسل {target_type}:"
     await query.edit_message_text(msg)
 
-# === استقبال النصوص (بدون :=) ===
+# === استقبال النصوص ===
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -191,7 +191,7 @@ async def comment_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("خطأ: ما فيش هدف!")
             return
         await query.edit_message_text(f"جاري رشق {amount} لايك على الكومنت...")
- SENT = await rashq_core(service, target, amount)
+        sent = await rashq_core(service, target, amount)
         await query.message.reply_text(f"تم الرشق: {sent} لايك\nتحقق بعد 5-30 دقيقة!")
         c.execute("INSERT INTO logs (user_id, service, target, amount, time) VALUES (?, ?, ?, ?, ?)",
                   (ADMIN_ID, service, target, sent, int(time.time())))
