@@ -1,4 +1,4 @@
-# bot.py - نسخة نووية | ملفين فقط | Railway 100%
+# bot.py - نسخة نووية | متوافقة مع python-telegram-bot v21+ | Railway 100%
 
 import logging
 import sqlite3
@@ -49,7 +49,7 @@ conn.commit()
 async def rashq_core(service, target, amount):
     sent = 0
     batch = 1000
-    for _ in range(min((amount // batch) + 1, 1000)):  # حد أقصى 1 مليون
+    for _ in range(min((amount // batch) + 1, 1000)):
         proxy = random.choice(PROXIES)
         headers = {"User-Agent": random.choice(USER_AGENTS)}
         session = requests.Session()
@@ -67,7 +67,7 @@ async def rashq_core(service, target, amount):
 # === /start ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ البوت خاص بـ @D_3F4ULT فقط.")
+        await update.message.reply_text("البوت خاص بـ @D_3F4ULT فقط.")
         return
     text = f"**بوت رشق تيك توك النووي**\nالمطور: `{DEVELOPER}`\nاختر الخدمة:"
     keyboard = [[InlineKeyboardButton(v['name'], callback_data=k)] for k, v in SERVICES.items()]
@@ -95,7 +95,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("أرسل العدد:")
     elif step == 'amount':
         if not text.isdigit():
-            await update.message.reply_text("⚠️ رقم صحيح!")
+            await update.message.reply_text("رقم صحيح!")
             return
         amount = int(text)
         service = context.user_data['service']
@@ -109,8 +109,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
 
 def main():
-    print("البوت شغال... وجاهز للرشق النووي! 🔥")
-    app = Application.builder().token(TOKEN).build()
+    print("البوت شغال... وجاهز للرشق النووي!")
+    app = Application.builder().token(TOKEN).concurrent_updates(True).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
