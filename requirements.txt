@@ -1,4 +1,4 @@
 python-telegram-bot[job-queue]>=21.0
 selenium==4.15.2
-chromedriver-py==129.0.6668.89
+webdriver-manager==4.0.2
 requests==2.31.0
