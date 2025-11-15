@@ -9,11 +9,9 @@ import re
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from chromedriver_py import binary_path
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
@@ -56,7 +54,6 @@ conn.commit()
 async def create_account_task(app):
     driver = None
     try:
-        # جلب إيميل من tempmail.lol
         resp = requests.get("https://api.tempmail.lol/generate", timeout=15)
         if resp.status_code != 200:
             await app.bot.send_message(ADMIN_ID, "فشل جلب الإيميل")
@@ -75,7 +72,6 @@ async def create_account_task(app):
         driver.find_element(By.XPATH, "//button[@type='submit']").click()
         await asyncio.sleep(10)
 
-        # انتظار الكود
         code = None
         for _ in range(20):
             try:
@@ -95,7 +91,6 @@ async def create_account_task(app):
             conn.commit()
             return False
 
-        # إدخال الكود
         inputs = driver.find_elements(By.XPATH, "//input[@maxlength='1']")
         for i, digit in enumerate(code):
             if i < len(inputs):
@@ -122,7 +117,7 @@ async def create_account_task(app):
         if driver:
             driver.quit()
 
-# تشغيل المتصفح
+# تشغيل المتصفح (Chrome من apt على Railway)
 def get_driver():
     options = Options()
     options.add_argument('--headless')
@@ -133,9 +128,8 @@ def get_driver():
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-
-    service = Service(executable_path=binary_path)
-    driver = webdriver.Chrome(service=service, options=options)
+    options.binary_location = '/usr/bin/google-chrome'
+    driver = webdriver.Chrome(options=options)
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => false});")
     return driver
 
@@ -227,7 +221,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target = context.user_data['target']
         await update.message.reply_text(f"جاري رشق {amount} {SERVICES[service]['name']}...")
         sent = await rashq_core(service, target, amount)
-        await update.message.reply_text(f"تم الرشق: {sent} ✅\nتحقق بعد 5-15 دقيقة")
+        await update.message.reply_text(f"تم الرشق: {sent} تم الإرسال\nتحقق بعد 5-15 دقيقة")
         context.user_data.clear()
 
 async def show_stats(query):
@@ -264,7 +258,7 @@ async def auto_create(app):
                 await app.bot.send_message(ADMIN_ID, f"تم إنشاء {success}/3 حسابات بنجاح")
         except Exception as e:
             logging.error(f"خطأ في الخلفية: {e}")
-        await asyncio.sleep(1800)  # كل 30 دقيقة
+        await asyncio.sleep(1800)
 
 # التشغيل
 def main():
