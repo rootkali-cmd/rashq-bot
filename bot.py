@@ -216,7 +216,7 @@ async def auto_create(app):
 # === تشغيل ===
 def main():
     print("Ahmed Mahmoud Farm Bot شغال... خارق!")
-    app = Application.builder().token(TOKEN).concurrent_updates(True).job_queue=True.build()
+    app = Application.builder().token(TOKEN).concurrent_updates(True).job_queue=True).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button, pattern='^(followers|views|likes)$'))
@@ -228,4 +228,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
