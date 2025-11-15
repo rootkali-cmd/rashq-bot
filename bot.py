@@ -52,81 +52,65 @@ c.execute('''CREATE TABLE IF NOT EXISTS logs (
 )''')
 conn.commit()
 
-# === Temp Mail API (1secmail.com) ===
-def get_temp_email():
-    domains = ['1secmail.com', '1secmail.org', '1secmail.net']
-    domain = random.choice(domains)
-    username = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=10))
-    return f"{username}@{domain}", username, domain
-
-def get_messages(username, domain):
-    try:
-        r = requests.get(f"https://www.1secmail.com/api/v1/?action=getMessages&login={username}&domain={domain}", timeout=10)
-        return r.json()
-    except:
-        return []
-
-def get_message(username, domain, msg_id):
-    try:
-        r = requests.get(f"https://www.1secmail.com/api/v1/?action=readMessage&login={username}&domain={domain}&id={msg_id}", timeout=10)
-        return r.json()
-    except:
-        return {}
-
-# === إنشاء حساب تلقائي ===
+# === إنشاء حساب تلقائي (تم تعديله ليعمل 2025) ===
 async def create_account_task():
     driver = None
     try:
-        email, username, domain = get_temp_email()
+        # جلب إيميل ورقم من tempmail.lol (مجاني + SMS)
+        response = requests.get("https://api.tempmail.lol/generate")
+        data = response.json()
+        email = data['address']
+        token = data['token']
+
         password = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=14))
         
         driver = get_driver()
-        driver.get("https://www.tiktok.com/signup")
-        time.sleep(6)
+        driver.get("https://www.tiktok.com/signup/phone-or-email/email")
+        time.sleep(8)
 
-        try:
-            driver.find_element(By.XPATH, "//div[contains(text(), 'Use phone or email')]").click()
-            time.sleep(2)
-            driver.find_element(By.XPATH, "//div[contains(text(), 'Email')]").click()
-            time.sleep(2)
-        except:
-            pass
-
+        # ملء الإيميل والباسورد
         driver.find_element(By.NAME, "email").send_keys(email)
         driver.find_element(By.NAME, "password").send_keys(password)
         driver.find_element(By.XPATH, "//button[@type='submit']").click()
-        time.sleep(8)
+        time.sleep(10)
 
+        # انتظار الكود في الإيميل
         code = None
-        for _ in range(12):
-            msgs = get_messages(username, domain)
-            if msgs:
-                msg = get_message(username, domain, msgs[0]['id'])
-                code_match = re.search(r'(\d{6})', msg.get('textBody', ''))
-                if code_match:
-                    code = code_match.group(1)
-                    break
-            await asyncio.sleep(5)
+        for _ in range(20):
+            msgs = requests.get(f"https://api.tempmail.lol/auth/{token}").json()
+            for msg in msgs.get('emails', []):
+                if "verification code" in msg['subject'].lower() or "كود" in msg['subject']:
+                    code_match = re.search(r'(\d{6})', msg['body'])
+                    if code_match:
+                        code = code_match.group(1)
+                        break
+            if code:
+                break
+            await asyncio.sleep(6)
 
-        if code:
-            for i, digit in enumerate(code):
-                driver.find_element(By.XPATH, f"//input[@data-index='{i}']").send_keys(digit)
-                time.sleep(0.5)
-            driver.find_element(By.XPATH, "//button[@type='submit']").click()
-            time.sleep(8)
-
-            c.execute("INSERT INTO accounts (email, pass, status, created_at) VALUES (?, ?, 'active', ?)",
-                      (email, password, int(time.time())))
-            conn.commit()
-            logging.info(f"تم إنشاء حساب: {email}")
-            return True
-        else:
-            c.execute("INSERT INTO accounts (email, pass, status, created_at) VALUES (?, ?, 'error', ?)",
-                      (email, password, int(time.time())))
-            conn.commit()
+        if not code:
+            await app.bot.send_message(ADMIN_ID, f"فشل في استقبال الكود لـ {email}")
             return False
+
+        # إدخال الكود
+        for i, digit in enumerate(code):
+            inputs = driver.find_elements(By.XPATH, "//input[@maxlength='1']")
+            if i < len(inputs):
+                inputs[i].send_keys(digit)
+                time.sleep(0.5)
+        driver.find_element(By.XPATH, "//button[@type='submit']").click()
+        time.sleep(10)
+
+        # نجاح
+        c.execute("INSERT INTO accounts (email, pass, status, created_at) VALUES (?, ?, 'active', ?)",
+                  (email, password, int(time.time())))
+        conn.commit()
+        await app.bot.send_message(ADMIN_ID, f"تم إنشاء حساب بنجاح: {email}")
+        return True
+
     except Exception as e:
-        logging.error(f"خطأ في إنشاء حساب: {e}")
+        logging.error(f"خطأ: {e}")
+        await app.bot.send_message(ADMIN_ID, f"خطأ في إنشاء حساب: {str(e)[:100]}")
         return False
     finally:
         if driver:
@@ -342,12 +326,12 @@ async def auto_create_accounts(app):
                     await create_account_task()
                     await asyncio.sleep(30)
         except: pass
-        await asyncio.sleep(1800)  # كل 30 دقيقة
+        await asyncio.sleep(1800)
 
 # === التشغيل ===
 def main():
     print("Ahmed Mahmoud Farm Bot شغال... خارق!")
-    app = Application.builder().token(TOKEN).concurrent_updates(True).build()
+    app = Application.builder().token(TOKEN).concurrent_updates(True).job_queue=True).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stats", stats))
