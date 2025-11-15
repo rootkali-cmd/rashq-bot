@@ -52,12 +52,15 @@ c.execute('''CREATE TABLE IF NOT EXISTS logs (
 )''')
 conn.commit()
 
-# === إنشاء حساب تلقائي (تم تعديله ليعمل 2025) ===
+# === إنشاء حساب تلقائي (تمpmail.lol - مجاني + SMS) ===
 async def create_account_task():
     driver = None
     try:
-        # جلب إيميل ورقم من tempmail.lol (مجاني + SMS)
+        # جلب إيميل + token من tempmail.lol
         response = requests.get("https://api.tempmail.lol/generate")
+        if response.status_code != 200:
+            await app.bot.send_message(ADMIN_ID, "فشل في جلب الإيميل من tempmail.lol")
+            return False
         data = response.json()
         email = data['address']
         token = data['token']
@@ -69,7 +72,9 @@ async def create_account_task():
         time.sleep(8)
 
         # ملء الإيميل والباسورد
-        driver.find_element(By.NAME, "email").send_keys(email)
+        email_input = driver.find_element(By.NAME, "email")
+        email_input.clear()
+        email_input.send_keys(email)
         driver.find_element(By.NAME, "password").send_keys(password)
         driver.find_element(By.XPATH, "//button[@type='submit']").click()
         time.sleep(10)
@@ -77,40 +82,53 @@ async def create_account_task():
         # انتظار الكود في الإيميل
         code = None
         for _ in range(20):
-            msgs = requests.get(f"https://api.tempmail.lol/auth/{token}").json()
-            for msg in msgs.get('emails', []):
-                if "verification code" in msg['subject'].lower() or "كود" in msg['subject']:
-                    code_match = re.search(r'(\d{6})', msg['body'])
-                    if code_match:
-                        code = code_match.group(1)
-                        break
-            if code:
-                break
+            try:
+                msgs = requests.get(f"https://api.tempmail.lol/auth/{token}", timeout=10).json()
+                for msg in msgs.get('emails', []):
+                    body = msg.get('body', '') or ''
+                    subject = msg.get('subject', '') or ''
+                    if "verification code" in subject.lower() or "كود" in subject or "verify" in subject.lower():
+                        code_match = re.search(r'(\d{6})', body)
+                        if code_match:
+                            code = code_match.group(1)
+                            break
+                if code:
+                    break
+            except:
+                pass
             await asyncio.sleep(6)
 
         if not code:
             await app.bot.send_message(ADMIN_ID, f"فشل في استقبال الكود لـ {email}")
+            c.execute("INSERT INTO accounts (email, pass, status, created_at) VALUES (?, ?, 'error', ?)",
+                      (email, password, int(time.time())))
+            conn.commit()
             return False
 
         # إدخال الكود
+        inputs = driver.find_elements(By.XPATH, "//input[@maxlength='1']")
         for i, digit in enumerate(code):
-            inputs = driver.find_elements(By.XPATH, "//input[@maxlength='1']")
             if i < len(inputs):
+                inputs[i].clear()
                 inputs[i].send_keys(digit)
                 time.sleep(0.5)
         driver.find_element(By.XPATH, "//button[@type='submit']").click()
-        time.sleep(10)
+        time.sleep(12)
 
-        # نجاح
-        c.execute("INSERT INTO accounts (email, pass, status, created_at) VALUES (?, ?, 'active', ?)",
-                  (email, password, int(time.time())))
-        conn.commit()
-        await app.bot.send_message(ADMIN_ID, f"تم إنشاء حساب بنجاح: {email}")
-        return True
+        # التحقق من النجاح
+        if "foryou" in driver.current_url or "following" in driver.current_url:
+            c.execute("INSERT INTO accounts (email, pass, status, created_at) VALUES (?, ?, 'active', ?)",
+                      (email, password, int(time.time())))
+            conn.commit()
+            await app.bot.send_message(ADMIN_ID, f"تم إنشاء حساب بنجاح: {email}")
+            return True
+        else:
+            await app.bot.send_message(ADMIN_ID, f"فشل في تسجيل الدخول بعد الكود: {email}")
+            return False
 
     except Exception as e:
-        logging.error(f"خطأ: {e}")
-        await app.bot.send_message(ADMIN_ID, f"خطأ في إنشاء حساب: {str(e)[:100]}")
+        logging.error(f"خطأ في إنشاء حساب: {e}")
+        await app.bot.send_message(ADMIN_ID, f"خطأ: {str(e)[:150]}")
         return False
     finally:
         if driver:
@@ -324,8 +342,9 @@ async def auto_create_accounts(app):
                 await app.bot.send_message(ADMIN_ID, "إنشاء 3 حسابات جديدة تلقائيًا...")
                 for _ in range(3):
                     await create_account_task()
-                    await asyncio.sleep(30)
-        except: pass
+                    await asyncio.sleep(40)
+        except Exception as e:
+            logging.error(f"خطأ في الخلفية: {e}")
         await asyncio.sleep(1800)
 
 # === التشغيل ===
