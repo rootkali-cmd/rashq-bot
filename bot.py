@@ -350,7 +350,7 @@ async def auto_create_accounts(app):
 # === التشغيل ===
 def main():
     print("Ahmed Mahmoud Farm Bot شغال... خارق!")
-    app = Application.builder().token(TOKEN).concurrent_updates(True).job_queue=True).build()
+    app = Application.builder().token(TOKEN).concurrent_updates(True).job_queue=True.build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stats", stats))
@@ -366,4 +366,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
