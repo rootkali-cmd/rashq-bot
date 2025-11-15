@@ -1,4 +1,4 @@
-bot.py - Ahmed Mahmoud Farm Bot | خارق | تلقائي | إحصائيات | مجاني 100%
+#bot.py - Ahmed Mahmoud Farm Bot | خارق | تلقائي | إحصائيات | مجاني 100%
 import logging
 import sqlite3
 import asyncio
@@ -332,3 +332,4 @@ app.job_queue.run_repeating(lambda c: asyncio.create_task(auto_create_accounts(a
 app.run_polling()
 if name == "main":
 main()
+
