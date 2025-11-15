@@ -21,6 +21,9 @@ from telegram.ext import (
 # إعدادات
 TOKEN = "8397954501:AAG5rlKIDoeaXFTt-Nm7PWcyxyYQgIGZD7k"
 ADMIN_ID = 8247475893
+PASSWORD = "K112KK21@"
+MIN_USERNAME = 111000
+MAX_USERNAME = 999999
 
 SERVICES = {
     'followers': {'name': 'رشق متابعين', 'type': 'username'},
@@ -37,6 +40,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE,
     password TEXT,
+    username TEXT,
     status TEXT DEFAULT 'creating',
     created_at INTEGER
 )''')
@@ -61,14 +65,14 @@ async def create_account_task(app):
         data = resp.json()
         email = data['address']
         token = data['token']
-        password = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=14))
+        username = f"user111_{random.randint(MIN_USERNAME, MAX_USERNAME)}"
 
         driver = get_driver()
         driver.get("https://www.tiktok.com/signup/phone-or-email/email")
         await asyncio.sleep(8)
 
         driver.find_element(By.NAME, "email").send_keys(email)
-        driver.find_element(By.NAME, "password").send_keys(password)
+        driver.find_element(By.NAME, "password").send_keys(PASSWORD)
         driver.find_element(By.XPATH, "//button[@type='submit']").click()
         await asyncio.sleep(10)
 
@@ -86,8 +90,8 @@ async def create_account_task(app):
 
         if not code:
             await app.bot.send_message(ADMIN_ID, f"فشل الكود: {email}")
-            c.execute("INSERT OR IGNORE INTO accounts (email, password, status, created_at) VALUES (?, ?, 'error', ?)",
-                      (email, password, int(time.time())))
+            c.execute("INSERT OR IGNORE INTO accounts (email, password, username, status, created_at) VALUES (?, ?, ?, 'error', ?)",
+                      (email, PASSWORD, username, int(time.time())))
             conn.commit()
             return False
 
@@ -100,10 +104,10 @@ async def create_account_task(app):
         await asyncio.sleep(12)
 
         if "foryou" in driver.current_url or "following" in driver.current_url:
-            c.execute("INSERT OR IGNORE INTO accounts (email, password, status, created_at) VALUES (?, ?, 'active', ?)",
-                      (email, password, int(time.time())))
+            c.execute("INSERT OR IGNORE INTO accounts (email, password, username, status, created_at) VALUES (?, ?, ?, 'active', ?)",
+                      (email, PASSWORD, username, int(time.time())))
             conn.commit()
-            await app.bot.send_message(ADMIN_ID, f"تم إنشاء حساب: {email}")
+            await app.bot.send_message(ADMIN_ID, f"تم إنشاء حساب:\nيوزر: @{username}\nإيميل: {email}")
             return True
         else:
             await app.bot.send_message(ADMIN_ID, f"فشل تسجيل الدخول: {email}")
@@ -117,7 +121,7 @@ async def create_account_task(app):
         if driver:
             driver.quit()
 
-# تشغيل المتصفح (Chrome من apt على Railway)
+# تشغيل المتصفح
 def get_driver():
     options = Options()
     options.add_argument('--headless')
@@ -176,6 +180,10 @@ async def rashq_core(service, target, amount):
     conn.commit()
     return sent
 
+# زر رجوع
+def back_button():
+    return [[InlineKeyboardButton("🔙 رجوع", callback_data="back")]]
+
 # الأوامر
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -195,11 +203,15 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.from_user.id != ADMIN_ID: return
 
     data = query.data
+    if data == "back":
+        context.user_data.clear()
+        await start(query, context)
+        return
     if data in SERVICES:
         context.user_data['service'] = data
         context.user_data['step'] = 'target'
         msg = "أرسل اسم المستخدم:" if SERVICES[data]['type'] == 'username' else "أرسل رابط الفيديو:"
-        await query.edit_message_text(msg)
+        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(back_button()))
     elif data == 'stats':
         await show_stats(query)
 
@@ -212,16 +224,16 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if step == 'target':
         context.user_data['target'] = text
         context.user_data['step'] = 'amount'
-        await update.message.reply_text("أرسل العدد:")
+        await update.message.reply_text("أرسل العدد (100 - 50000):", reply_markup=InlineKeyboardMarkup(back_button()))
     elif step == 'amount':
-        if not text.isdigit() or int(text) <= 0:
-            await update.message.reply_text("أرسل رقم صحيح!")
+        if not text.isdigit() or not (100 <= int(text) <= 50000):
+            await update.message.reply_text("العدد يجب أن يكون بين 100 و 50000!")
             return
         amount = int(text)
         target = context.user_data['target']
-        await update.message.reply_text(f"جاري رشق {amount} {SERVICES[service]['name']}...")
+        await update.message.reply_text(f"جاري رشق {amount:,} {SERVICES[service]['name']}...")
         sent = await rashq_core(service, target, amount)
-        await update.message.reply_text(f"تم الرشق: {sent} تم الإرسال\nتحقق بعد 5-15 دقيقة")
+        await update.message.reply_text(f"تم الرشق: {sent:,} تم الإرسال\nتحقق بعد 5-15 دقيقة", reply_markup=InlineKeyboardMarkup(back_button()))
         context.user_data.clear()
 
 async def show_stats(query):
@@ -239,7 +251,7 @@ async def show_stats(query):
 
 آخر تحديث: {time.strftime('%H:%M:%S')}
 """
-    keyboard = [[InlineKeyboardButton("تحديث الإحصائيات", callback_data="stats")]]
+    keyboard = [[InlineKeyboardButton("تحديث الإحصائيات", callback_data="stats")], [InlineKeyboardButton("رجوع", callback_data="back")]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 # خلفية تلقائية
