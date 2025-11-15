@@ -277,7 +277,8 @@ async def auto_create(app):
                     if await create_account_task(app):
                         success += 1
                     await asyncio.sleep(40)
-                await app.bot Bounty.send_message(ADMIN_ID, f"تم إنشاء {success}/3 حسابات بنجاح")
+                # داخل دالة auto_create
+                await app.bot.send_message(ADMIN_ID, f"تم إنشاء {success}/3 حسابات بنجاح")
         except Exception as e:
             logging.error(f"خطأ في الخلفية: {e}")
         await asyncio.sleep(1800)
@@ -301,3 +302,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
