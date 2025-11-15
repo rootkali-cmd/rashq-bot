@@ -52,12 +52,12 @@ c.execute('''CREATE TABLE IF NOT EXISTS logs (
 )''')
 conn.commit()
 
-# === إنشاء حساب تلقائي (تمpmail.lol - مجاني + SMS) ===
-async def create_account_task():
+# === إنشاء حساب تلقائي (tempmail.lol - مجاني + SMS) ===
+async def create_account_task(app):
     driver = None
     try:
         # جلب إيميل + token من tempmail.lol
-        response = requests.get("https://api.tempmail.lol/generate")
+        response = requests.get("https://api.tempmail.lol/generate", timeout=15)
         if response.status_code != 200:
             await app.bot.send_message(ADMIN_ID, "فشل في جلب الإيميل من tempmail.lol")
             return False
@@ -341,7 +341,7 @@ async def auto_create_accounts(app):
             if active < 15:
                 await app.bot.send_message(ADMIN_ID, "إنشاء 3 حسابات جديدة تلقائيًا...")
                 for _ in range(3):
-                    await create_account_task()
+                    await create_account_task(app)
                     await asyncio.sleep(40)
         except Exception as e:
             logging.error(f"خطأ في الخلفية: {e}")
@@ -350,7 +350,7 @@ async def auto_create_accounts(app):
 # === التشغيل ===
 def main():
     print("Ahmed Mahmoud Farm Bot شغال... خارق!")
-    app = Application.builder().token(TOKEN).concurrent_updates(True).job_queue=True.build()
+    app = Application.builder().token(TOKEN).concurrent_updates(True).job_queue=True).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stats", stats))
@@ -366,5 +366,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
