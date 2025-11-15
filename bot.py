@@ -1,3 +1,5 @@
+# bot.py - بوت رشق Ahmed Mahmoud | خارق | تلقائي | إحصائيات | مجاني 100%
+
 import logging
 import sqlite3
 import asyncio
@@ -12,8 +14,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes, JobQueue
 
+# === إعدادات ===
 TOKEN = "8397954501:AAG5rlKIDoeaXFTt-Nm7PWcyxyYQgIGZD7k"
 ADMIN_ID = 8247475893
 DEVELOPER = "Ahmed Mahmoud"
@@ -30,6 +33,7 @@ SERVICES = {
 
 logging.basicConfig(level=logging.INFO)
 
+# === قاعدة بيانات ===
 conn = sqlite3.connect("rashq.db", check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS accounts (
@@ -48,13 +52,11 @@ c.execute('''CREATE TABLE IF NOT EXISTS logs (
 )''')
 conn.commit()
 
+# === إنشاء حساب تلقائي ===
 async def create_account_task(app):
     driver = None
     try:
         response = requests.get("https://api.tempmail.lol/generate", timeout=15)
-        if response.status_code != 200:
-            await app.bot.send_message(ADMIN_ID, "فشل في جلب الإيميل")
-            return False
         data = response.json()
         email = data['address']
         token = data['token']
@@ -102,6 +104,7 @@ async def create_account_task(app):
         if driver: driver.quit()
     return False
 
+# === get_driver ===
 def get_driver():
     options = Options()
     options.add_argument('--headless')
@@ -115,6 +118,7 @@ def get_driver():
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => false});")
     return driver
 
+# === login ===
 def login(driver, email, password):
     try:
         driver.get("https://www.tiktok.com/login/phone-or-email/email")
@@ -127,6 +131,7 @@ def login(driver, email, password):
     except:
         return False
 
+# === رشق ===
 async def rashq_core(service, target, amount):
     c.execute("SELECT email, pass FROM accounts WHERE status = 'active' LIMIT 30")
     accounts = c.fetchall()
@@ -152,12 +157,14 @@ async def rashq_core(service, target, amount):
     conn.commit()
     return sent
 
+# === /start ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID: return
     keyboard = [[InlineKeyboardButton(v['name'], callback_data=k)] for k, v in SERVICES.items()]
     keyboard.append([InlineKeyboardButton("إحصائيات", callback_data='stats')])
     await update.message.reply_text("اختر الخدمة:", reply_markup=InlineKeyboardMarkup(keyboard))
 
+# === اختيار الخدمة ===
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -168,11 +175,12 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = "أرسل اسم المستخدم:" if SERVICES[service]['type'] == 'username' else "أرسل رابط الفيديو:"
     await query.edit_message_text(msg)
 
+# === استقبال النصوص ===
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID: return
     text = update.message.text.strip()
     step = context.user_data.get('step')
-    service = context.user_data.get('service')
+    service = context.user_data['service']
     if step == 'target':
         context.user_data['target'] = text
         context.user_data['step'] = 'amount'
@@ -188,6 +196,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"تم: {sent}")
         context.user_data.clear()
 
+# === /stats ===
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     c.execute("SELECT COUNT(*) FROM accounts WHERE status = 'active'"); active = c.fetchone()[0]
     c.execute("SELECT SUM(amount) FROM logs"); total = c.fetchone()[0] or 0
@@ -195,6 +204,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("تحديث", callback_data='stats')]]
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
+# === خلفية ===
 async def auto_create(app):
     while True:
         c.execute("SELECT COUNT(*) FROM accounts WHERE status = 'active'")
@@ -207,14 +217,12 @@ async def auto_create(app):
 
 def main():
     print("Bot شغال!")
-    app = Application.builder().token(TOKEN).concurrent_updates(True).job_queue().build()
+    app = Application.builder().token(TOKEN).concurrent_updates(True).job_queue(JobQueue()).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button, pattern='^(followers|views|likes)$'))
-    app.add_handler(CallbackQueryHandler(lambda u, c: stats(u, c), pattern='^stats$'))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.job_queue.run_repeating(lambda _: asyncio.create_task(auto_create(app)), interval=1800, first=10)
     app.run_polling()
 
 if __name__ == "__main__":
     main()
-
