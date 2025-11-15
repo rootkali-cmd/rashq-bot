@@ -13,7 +13,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager  # ← الحل النهائي
+from webdriver_manager.chrome import ChromeDriverManager  # الحل النهائي للتوافق
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
@@ -123,7 +123,7 @@ async def create_account_task(app):
         if driver:
             driver.quit()
 
-# تشغيل المتصفح (شغال 100% على Railway)
+# تشغيل المتصفح (الحل النهائي - webdriver-manager)
 def get_driver():
     options = Options()
     options.add_argument('--headless')
@@ -138,7 +138,7 @@ def get_driver():
     # Chrome من apt
     options.binary_location = '/usr/bin/google-chrome'
     
-    # webdriver-manager يجيب الإصدار الصح
+    # webdriver-manager يحل التوافق تلقائيًا
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => false});")
@@ -189,7 +189,7 @@ async def rashq_core(service, target, amount):
 
 # زر رجوع
 def back_button():
-    return [[InlineKeyboardButton("رجوع", callback_data="back")]]
+    return [[InlineKeyboardButton("🔙 رجوع", callback_data="back")]]
 
 # الأوامر
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -277,7 +277,6 @@ async def auto_create(app):
                     if await create_account_task(app):
                         success += 1
                     await asyncio.sleep(40)
-                # داخل دالة auto_create
                 await app.bot.send_message(ADMIN_ID, f"تم إنشاء {success}/3 حسابات بنجاح")
         except Exception as e:
             logging.error(f"خطأ في الخلفية: {e}")
@@ -302,4 +301,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
