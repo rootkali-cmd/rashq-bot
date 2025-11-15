@@ -13,7 +13,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from chromedriver_py import binary_path  # ← هنا الحل
+from webdriver_manager.chrome import ChromeDriverManager  # ← الحل النهائي
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
@@ -135,8 +135,11 @@ def get_driver():
     options.add_experimental_option('useAutomationExtension', False)
     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
     
-    # استخدام chromedriver-py
-    service = Service(executable_path=binary_path)
+    # Chrome من apt
+    options.binary_location = '/usr/bin/google-chrome'
+    
+    # webdriver-manager يجيب الإصدار الصح
+    service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => false});")
     return driver
@@ -204,12 +207,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    if query.from_user.id != ADMIN_ID: return  # ← تم التصليح
+    if query.from_user.id != ADMIN_ID: return
 
     data = query.data
     if data == "back":
         context.user_data.clear()
-        await start(query.message, context)  # ← تم التصليح
+        await start(query.message, context)
         return
     if data in SERVICES:
         context.user_data['service'] = data
@@ -274,7 +277,7 @@ async def auto_create(app):
                     if await create_account_task(app):
                         success += 1
                     await asyncio.sleep(40)
-                await app.bot.send_message(ADMIN_ID, f"تم إنشاء {success}/3 حسابات بنجاح")
+                await app.bot Bounty.send_message(ADMIN_ID, f"تم إنشاء {success}/3 حسابات بنجاح")
         except Exception as e:
             logging.error(f"خطأ في الخلفية: {e}")
         await asyncio.sleep(1800)
