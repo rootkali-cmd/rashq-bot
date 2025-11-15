@@ -9,6 +9,7 @@ import re
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -121,7 +122,7 @@ async def create_account_task(app):
         if driver:
             driver.quit()
 
-# تشغيل المتصفح
+# تشغيل المتصفح (Chrome من apt على Railway)
 def get_driver():
     options = Options()
     options.add_argument('--headless')
@@ -132,8 +133,12 @@ def get_driver():
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    
+    # Chrome من apt
     options.binary_location = '/usr/bin/google-chrome'
-    driver = webdriver.Chrome(options=options)
+    
+    service = Service()  # بدون مسار
+    driver = webdriver.Chrome(service=service, options=options)
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => false});")
     return driver
 
@@ -182,7 +187,7 @@ async def rashq_core(service, target, amount):
 
 # زر رجوع
 def back_button():
-    return [[InlineKeyboardButton("🔙 رجوع", callback_data="back")]]
+    return [[InlineKeyboardButton("رجوع", callback_data="back")]]
 
 # الأوامر
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -251,7 +256,10 @@ async def show_stats(query):
 
 آخر تحديث: {time.strftime('%H:%M:%S')}
 """
-    keyboard = [[InlineKeyboardButton("تحديث الإحصائيات", callback_data="stats")], [InlineKeyboardButton("رجوع", callback_data="back")]]
+    keyboard = [
+        [InlineKeyboardButton("تحديث الإحصائيات", callback_data="stats")],
+        [InlineKeyboardButton("رجوع", callback_data="back")]
+    ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 # خلفية تلقائية
